@@ -1137,7 +1137,14 @@ namespace gr {
         GR_LOG_FATAL(d_logger, "Pilot Generator and IFFT, cannot allocate memory for ofdm_fft.");
         throw std::bad_alloc();
       }
+
       num_symbols = numdatasyms + N_P2;
+      data_carrier_map.resize(num_symbols);
+      for (std::vector< std::vector<int> >::size_type i = 0; i != data_carrier_map.size(); i++){
+        data_carrier_map[i].resize(MAX_CARRIERS);
+      }
+      init_pilots();
+
       set_output_multiple(num_symbols);
     }
 
@@ -1179,9 +1186,11 @@ namespace gr {
     }
 
     void
-    dvbt2_pilotgenerator_cc_impl::init_pilots(int symbol)
+    dvbt2_pilotgenerator_cc_impl::init_pilots()
     {
+      for (int symbol = 0; symbol < num_symbols; ++symbol){
       int remainder, shift;
+      std::vector<int> &data_carrier_map = this->data_carrier_map[symbol];
       for (int i = 0; i < C_PS; i++) {
         data_carrier_map[i] = DATA_CARRIER;
       }
@@ -2675,7 +2684,10 @@ namespace gr {
             break;
         }
       }
+      }
     }
+
+    const gr_complex zero = gr_complex(0.0, 0.0);
 
     int
     dvbt2_pilotgenerator_cc_impl::general_work (int noutput_items,
@@ -2685,17 +2697,14 @@ namespace gr {
     {
       const gr_complex *in = (const gr_complex *) input_items[0];
       gr_complex *out = (gr_complex *) output_items[0];
-      gr_complex zero;
       gr_complex *dst;
       int L_FC = 0;
 
-      zero = gr_complex(0.0, 0.0);
       if (N_FC != 0) {
         L_FC = 1;
       }
       for (int i = 0; i < noutput_items; i += num_symbols) {
         for (int j = 0; j < num_symbols; j++) {
-          init_pilots(j);
           if (j < N_P2) {
             for (int n = 0; n < left_nulls; n++) {
               *out++ = zero;
@@ -2745,19 +2754,19 @@ namespace gr {
               *out++ = zero;
             }
             for (int n = 0; n < C_PS; n++) {
-              if (data_carrier_map[n] == SCATTERED_CARRIER) {
+              if (data_carrier_map[j][n] == SCATTERED_CARRIER) {
                 *out++ = sp_bpsk[prbs[n + K_OFFSET] ^ pn_sequence[j]];
               }
-              else if (data_carrier_map[n] == SCATTERED_CARRIER_INVERTED) {
+              else if (data_carrier_map[j][n] == SCATTERED_CARRIER_INVERTED) {
                 *out++ = sp_bpsk_inverted[prbs[n + K_OFFSET] ^ pn_sequence[j]];
               }
-              else if (data_carrier_map[n] == CONTINUAL_CARRIER) {
+              else if (data_carrier_map[j][n] == CONTINUAL_CARRIER) {
                 *out++ = cp_bpsk[prbs[n + K_OFFSET] ^ pn_sequence[j]];
               }
-              else if (data_carrier_map[n] == CONTINUAL_CARRIER_INVERTED) {
+              else if (data_carrier_map[j][n] == CONTINUAL_CARRIER_INVERTED) {
                 *out++ = cp_bpsk_inverted[prbs[n + K_OFFSET] ^ pn_sequence[j]];
               }
-              else if (data_carrier_map[n] == TRPAPR_CARRIER) {
+              else if (data_carrier_map[j][n] == TRPAPR_CARRIER) {
                 *out++ = zero;
               }
               else {
